@@ -6,7 +6,6 @@ import iso6393 from '@freearhey/iso-639-3';
 
 export function ConvertForm() {
     const [form, setForm] = useState({
-        outputFile: '',
         welcomePage: '',
         favicon: '',
         language: '',
@@ -57,13 +56,16 @@ export function ConvertForm() {
             console.log(key, value);
         }
         try {
-            const response = await axios.post('http://localhost:3019/convert', formData, {
+            // Primero llama a la función upload
+            const uploadResponse = await axios.post('http://localhost:3019/upload', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
                 timeout: 6000000000,
             });
-            console.log("convert", response.data);
+            console.log("upload", uploadResponse.data);
+    
+            // Luego, en el backend, la función upload llamará a convert
         } catch (err) {
             console.error(err);
         }
@@ -105,19 +107,6 @@ export function ConvertForm() {
                                     sx={{ pt: 2 }}
                                 >
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
-                                        <Typography variant="body1" align="left" sx={{ width: '60%' }}>Enter the name of the Zim File to be generated</Typography>
-                                        <TextField
-                                            required
-                                            name="outputFile"
-                                            label="Zim File Name"
-                                            placeholder="e.g. mywebsite.zim"
-                                            onChange={handleChange}
-                                            size="small"
-                                            align="left"
-                                            style={{ width: '40%' }}
-                                        />
-                                    </Box>
-                                    <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
                                         <Typography variant="body1" align="left" sx={{ width: '60%' }}>Name of main HTML page, if it's not in the main directory, use the path, e.g. docs/index.html</Typography>
                                         <TextField
                                             required
@@ -131,7 +120,7 @@ export function ConvertForm() {
                                         />
                                     </Box>
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
-                                        <Typography variant="body1" align="left" sx={{ width: '60%' }}>Name of the icon, 48x48 PNG file, if it's not in the main directory, use the path, e.g. img/favicon.png</Typography>
+                                        <Typography variant="body1" align="left" sx={{ width: '60%' }}>Name of the icon, if it's not in the main directory, use the path, e.g. img/favicon.png</Typography>
                                         <TextField
                                             required
                                             name="favicon"
@@ -159,7 +148,7 @@ export function ConvertForm() {
                                         />
                                     </Box>
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
-                                        <Typography variant="body1" align="left" sx={{ width: '40%' }}>Enter a title for the Zim File</Typography>
+                                        <Typography variant="body1" align="left" sx={{ width: '40%' }}>Enter a title that reflects the content</Typography>
                                         <TextField
                                             required
                                             name="title"
