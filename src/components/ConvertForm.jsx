@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactSelect from 'react-select';
 import axios from 'axios';
-import { Button, Container, TextField, Stack, Grid, Typography, Divider, FormControl, MenuItem, InputLabel, Select, Card, CardHeader, CardContent, Box } from '@mui/material';
+import { Button, Container, TextField, Stack, Grid, Typography, Card, CardHeader, CardContent, Box } from '@mui/material';
 import iso6393 from '@freearhey/iso-639-3';
 
 export function ConvertForm() {
+
     const [form, setForm] = useState({
         welcomePage: '',
         favicon: '',
@@ -15,6 +16,9 @@ export function ConvertForm() {
         publisher: 'ZiptoZim'
     });
 
+    const [downloadUrl, setDownloadUrl] = useState('');
+    const [isFileReady, setIsFileReady] = useState(false);
+
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
         if (e.target.type === 'file') {
@@ -24,38 +28,78 @@ export function ConvertForm() {
         }
     };
 
-    const [tempDir, setTempDir] = useState(null);
     const [file, setFile] = useState(null);
 
     const handleSubmit = async (e) => {
-    e.preventDefault();
-    const formData = new FormData();
-    Object.keys(form).forEach((key) => {
-        formData.append(key, form[key]);
-    });
-
-    // Append the file to formData
-    formData.append('inputFile', file);
-    console.log("inputFile", form.inputFile);
-
-    // Log the contents of formData
-    for (let [key, value] of formData.entries()) {
-        console.log(key, value);
-    }
-
-    try {
-        const response = await axios.post('http://localhost:3019/upload', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-            timeout: 600000000,
+        e.preventDefault();
+        const formData = new FormData();
+        Object.keys(form).forEach((key) => {
+            formData.append(key, form[key]);
         });
-        setTempDir(response.data.tempDir);
-        console.log("upload", response.data);
-    } catch (err) {
-        console.error(err);
-    }
-};
+
+        // Append the file to formData
+        formData.append('inputFile', file);
+
+        // Log the contents of formData
+        for (let [key, value] of formData.entries()) {
+            console.log(key, value);
+        }
+
+        try {
+            const response = await axios.post('http://localhost:3019/upload', formData, {
+                responseType: 'blob', // Importante para manejar la respuesta como un archivo
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                timeout: 600000000,
+            });
+
+
+            // Crear una URL para el blob
+            const blob = new Blob([response.data], { type: 'application/octet-stream' });
+
+
+            // Para descargas
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = 'nombreDelArchivo.zim'; // Extensión según el tipo de archivo
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+
+            //const downloadUrl = window.URL.createObjectURL(blob);
+            setDownloadUrl(downloadUrl);
+            console.log("downloadUrl", downloadUrl);
+            setIsFileReady(true);
+
+            // Extraer el nombre del archivo del header 'content-disposition'
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = 'archivo.zim'; // Nombre por defecto
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                if (filenameMatch.length > 1) {
+                    filename = filenameMatch[1];
+                }
+            }
+
+            // Crear un enlace para descargar el archivo
+            const downloadLink = document.createElement('a');
+            downloadLink.href = downloadUrl;
+            downloadLink.setAttribute('download', filename); // Especifica el nombre del archivo para descargar
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+
+            // Limpiar después de la descarga
+            document.body.removeChild(downloadLink);
+            window.URL.revokeObjectURL(downloadUrl);
+
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
 
     const inputFileRef = React.useRef();
     const onFileButtonClick = () => {
@@ -78,6 +122,11 @@ export function ConvertForm() {
         }
     };
 
+    useEffect(() => {
+        console.log("isFileReady", isFileReady);
+    }, [isFileReady]); // Asegura que se consologuee isFileReady solo después de que su estado haya cambiado.
+
+
     return (
         <Container>
             <form onSubmit={handleSubmit}>
@@ -93,7 +142,7 @@ export function ConvertForm() {
                                     sx={{ pt: 2 }}
                                 >
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
-                                        <Typography variant="body1" align="left" sx={{ width: '60%' }}>Name of main HTML page, if it's not in the main directory, use the path, e.g. docs/index.html</Typography>
+                                        <Typography variant="body1" align="left" sx={{ width: '60%' }}>XXX of main HTML page, if it's not in the main directory, use the path, e.g. docs/index.html</Typography>
                                         <TextField
                                             required
                                             name="welcomePage"
@@ -225,14 +274,32 @@ export function ConvertForm() {
                                     </Box>
                                 </CardContent>
                             </Card>
-                            <Button
-                                variant="contained"
-                                type="submit"
-                                size='large'
-                                sx={{ mt: 2, maxWidth: 'fit-content', margin: '0 auto' }}
-                            >
-                                Generate Zim File
-                            </Button>
+                            {isFileReady ? (
+                                <Button
+                                    variant="contained"
+                                    onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = 'URL_DEL_ARCHIVO_A_DESCARGAR'; // Reemplaza esto con la URL real del archivo
+                                        link.download = 'NombreDelArchivo.zim'; // Opcional: especifica un nombre de archivo para la descarga
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                    }}
+                                    size="large"
+                                    sx={{ mt: 2, maxWidth: 'fit-content', margin: '0 auto', backgroundColor: 'green' }}
+                                >
+                                    Download Zim File
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="contained"
+                                    type="submit"
+                                    size="large"
+                                    sx={{ mt: 20, maxWidth: 'fit-content', margin: '0 auto' }}
+                                >
+                                    Generate Zim File
+                                </Button>
+                            )}
                         </Stack>
                     </Grid>
                 </Grid>
