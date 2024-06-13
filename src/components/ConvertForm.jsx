@@ -17,59 +17,45 @@ export function ConvertForm() {
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
+        if (e.target.type === 'file') {
+            setFile(e.target.files[0]);
+        } else {
+            setForm({ ...form, [e.target.name]: e.target.value });
+        }
     };
 
     const [tempDir, setTempDir] = useState(null);
+    const [file, setFile] = useState(null);
 
-    const handleUpload = async (e) => {
-        e.preventDefault();
-        const uploadData = new FormData();
-        uploadData.append('inputFile', form.inputFile);
-        console.log("upload data", uploadData)
+    const handleSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    Object.keys(form).forEach((key) => {
+        formData.append(key, form[key]);
+    });
 
-        try {
-            const response = await axios.post('http://localhost:3019/upload', uploadData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-                timeout: 600000000,
-            });
-            setTempDir(response.data.tempDir);
-            console.log("upload", response.data);
-            handleSubmit();
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    // Append the file to formData
+    formData.append('inputFile', file);
+    console.log("inputFile", form.inputFile);
 
-    const handleSubmit = async () => {
-        const formData = new FormData();
-        Object.keys(form).forEach((key) => {
-            if (key !== 'inputFile') {
-                formData.append(key, form[key]);
-            }
+    // Log the contents of formData
+    for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+    }
+
+    try {
+        const response = await axios.post('http://localhost:3019/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+            timeout: 600000000,
         });
-
-
-        // Log the contents of formData
-        for (let [key, value] of formData.entries()) {
-            console.log(key, value);
-        }
-        try {
-            // Primero llama a la función upload
-            const uploadResponse = await axios.post('http://localhost:3019/upload', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-                timeout: 6000000000,
-            });
-            console.log("upload", uploadResponse.data);
-    
-            // Luego, en el backend, la función upload llamará a convert
-        } catch (err) {
-            console.error(err);
-        }
-    };
+        setTempDir(response.data.tempDir);
+        console.log("upload", response.data);
+    } catch (err) {
+        console.error(err);
+    }
+};
 
     const inputFileRef = React.useRef();
     const onFileButtonClick = () => {
@@ -94,7 +80,7 @@ export function ConvertForm() {
 
     return (
         <Container>
-            <form onSubmit={handleUpload}>
+            <form onSubmit={handleSubmit}>
                 <Grid container display='flex' justifyContent='space-between'>
                     <Grid item xs={12} sm={7.8}>
                         <Card sx={{ mb: '2rem', backgroundColor: 'transparent', border: '1px solid', borderColor: 'grey.300', boxShadow: '0px 0px 8px rgba(0, 0, 0, 0.25)' }}>
