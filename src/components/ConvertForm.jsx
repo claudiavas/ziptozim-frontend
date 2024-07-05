@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import axios from 'axios';
 import { Button, Container, TextField, Stack, Grid, Typography, Card, CardHeader, CardContent, Box, FormHelperText, FormControl, InputLabel, Select, MenuItem, Alert } from '@mui/material';
@@ -34,20 +34,24 @@ export function ConvertForm() {
         title: '',
         description: '_',
         creator: '_',
-        publisher: 'ZiptoZim'
+        publisher: 'ZiptoZim',
+        inputFile: null,
     });
 
     const [isFileReady, setIsFileReady] = useState(false);
     const fileInputRef = useRef(null);
     const [errors, setErrors] = useState({});
+    const [touched, setTouched] = useState(false);
+    const [touchedFields, setTouchedFields] = useState({});
     const [serverError, setServerError] = useState("");
     const [confirmationMessage, setConfirmationMessage] = useState("");
+    
 
 
     const validateForm = () => {
         let tempErrors = {};
-        tempErrors.welcomePage = form.welcomePage ? "" : "This field is required.";
-        tempErrors.favicon = form.favicon ? "" : "This field is required.";
+        tempErrors.welcomePage = form.welcomePage ? (form.welcomePage.endsWith('.html') ? "" : "The welcome page must be an HTML file.") : "This field is required.";
+        tempErrors.favicon = form.favicon ? (/\.(png|jpg|jpeg)$/i.test(form.favicon) ? "" : "The favicon must be a PNG or JPG file.") : "This field is required.";
         tempErrors.language = form.language ? "" : "This field is required.";
         tempErrors.title = form.title ? "" : "This field is required.";
 
@@ -65,17 +69,21 @@ export function ConvertForm() {
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
+        setTouchedFields({ ...touchedFields, [e.target.name]: true });
     };
 
     const handleFileChange = (e) => {
         setForm({ ...form, inputFile: e.target.files[0] });
+        setTouchedFields({ ...touchedFields, inputFile: true });
+
         if (e.target.files[0].type !== "application/zip") {
             setErrors({ ...errors, file: "The file must be a .zip format." });
             setIsFileReady(false);
-            return;
+        } else {
+            setErrors({ ...errors, file: "" });
+            setIsFileReady(true);
         }
-        setIsFileReady(true)
-    }
+    };
 
     // Language options for the select component
 
@@ -118,6 +126,50 @@ export function ConvertForm() {
         }
     }
 
+    async function handleSubmit(e) {
+        e.preventDefault();
+        setTouched(true);
+        if (!validateForm()) return;
+        const formData = new FormData();
+        Object.keys(form).forEach(key => {
+            formData.append(key, form[key]);
+        });
+
+        for (let [key, value] of formData.entries()) {
+            console.log(key, value);
+        }
+
+        try {
+            const response = await postFormData(formData);
+            if (response && response.status === 200) {
+                await handleFileDownload(response);
+                setServerError("");
+
+                // Limpia el estado del formulario y referencias al archivo
+                setForm({
+                    welcomePage: '',
+                    favicon: '',
+                    language: '',
+                    title: '',
+                    description: '_',
+                    creator: '_',
+                    publisher: 'ZiptoZim',
+                    inputFile: null
+                });
+                setIsFileReady(false);
+                setSelectedLanguage('');
+
+            } else {
+                console.error("Error submitting form: Invalid server response");
+                setServerError("Invalid server response");
+            }
+        } catch (err) {
+            console.error("Error submitting form:", err);
+            setServerError(err.response ? err.response.data : "Error submitting form");
+
+        }
+    }
+
     async function handleFileDownload(response) {
         if (form && form.inputFile) {
             const blob = new Blob([response.data], { type: 'application/octet-stream' });
@@ -136,51 +188,16 @@ export function ConvertForm() {
         }
     }
 
-    async function handleSubmit(e) {
-        e.preventDefault();
-        if (!validateForm()) return;
-        const formData = new FormData();
-        Object.keys(form).forEach(key => {
-            formData.append(key, form[key]);
-        });
-
-        for (let [key, value] of formData.entries()) {
-            console.log(key, value);
+    useEffect(() => {
+        if (touched) {
+            validateForm();
         }
+    }, [form]);
 
-        try {
-            const response = await postFormData(formData);
-            if (response && response.status === 200) {
-                await handleFileDownload(response);
-                setServerError("");
-
-             // Limpia el estado del formulario y referencias al archivo
-        setForm({
-            welcomePage: '',
-            favicon: '',
-            language: '',
-            title: '',
-            description: '_',
-            creator: '_',
-            publisher: 'ZiptoZim',
-            inputFile: null
-        });
-        setIsFileReady(false);
-        setSelectedLanguage('');
-
-            } else {
-                console.error("Error submitting form: Invalid server response");
-                setServerError("Invalid server response");
-            }
-        } catch (err) {
-            console.error("Error submitting form:", err);
-            setServerError(err.response ? err.response.data : "Error submitting form");
-
-        }
-    }
 
     return (
         <Container>
+            <p>13:16</p>
             <form noValidate onSubmit={handleSubmit}>
                 <Grid container display='flex' justifyContent='space-between'>
                     <Grid item xs={12} sm={7.8}>
@@ -202,8 +219,8 @@ export function ConvertForm() {
                                             placeholder="e.g. index.html"
                                             value={form.welcomePage}
                                             onChange={handleChange}
-                                            error={!!errors.welcomePage}
-                                            helperText={errors.welcomePage}
+                                            error={touchedFields.welcomePage && !!errors.welcomePage}
+                                            helperText={touchedFields.welcomePage && errors.welcomePage}
                                             size="small"
                                             align="left"
                                             style={{ width: '40%' }}
@@ -218,8 +235,8 @@ export function ConvertForm() {
                                             placeholder="e.g. favicon.png"
                                             value={form.favicon}
                                             onChange={handleChange}
-                                            error={!!errors.favicon}
-                                            helperText={errors.favicon}
+                                            error={touchedFields.favicon && !!errors.favicon}
+                                            helperText={touchedFields.favicon && errors.favicon}
                                             size="small"
                                             align="left"
                                             style={{ width: '40%' }}
@@ -227,7 +244,7 @@ export function ConvertForm() {
                                     </Box>
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Typography variant="body1" align="left" sx={{ width: '60%' }}>Language of the content</Typography>
-                                        <FormControl sx={{ width: '90%' }} error={!!errors.language}>
+                                        <FormControl sx={{ width: '90%' }} error={touchedFields.language && !!errors.language}>
                                             <InputLabel id="language-select-label">Select language</InputLabel>
                                             <Select
                                                 labelId="language-select-label"
@@ -243,7 +260,7 @@ export function ConvertForm() {
                                                     </MenuItem>
                                                 ))}
                                             </Select>
-                                            {errors.language && <FormHelperText>{errors.language}</FormHelperText>}
+                                            {touchedFields.language && <FormHelperText>{errors.language}</FormHelperText>}
                                         </FormControl>
                                     </Box>
 
@@ -256,7 +273,7 @@ export function ConvertForm() {
                                             placeholder="e.g. Our Website"
                                             value={form.title}
                                             onChange={handleChange}
-                                            error={!!errors.title}
+                                            error={touchedFields.title && !!errors.title}
                                             helperText={errors.title}
                                             size="small"
                                             align="left"
@@ -344,11 +361,11 @@ export function ConvertForm() {
                                         >
                                             Select Zip File
                                         </Button>
-                                        <Typography variant="body1" align="center">Selected file: {form.inputFile ? form.inputFile.name : 'None'}</Typography>
-                                        <FormHelperText sx={{ color: 'error.main', textAlign: 'center', width: '100%' }}>
+                                        {touchedFields.inputFile && errors.file && (<FormHelperText sx={{ color: 'error.main', textAlign: 'center', width: '100%' }}>
                                             {errors.file}
                                         </FormHelperText>
-
+                                        )}
+                                        <Typography variant="body1" align="center">Selected file: {form.inputFile ? form.inputFile.name : 'None'}</Typography>
                                     </Box>
                                 </CardContent>
                             </Card>
@@ -371,13 +388,13 @@ export function ConvertForm() {
                                     Generate Zim File
                                 </Button>
                             )}
-            
+
                         </Stack>
                     </Grid>
                     <FormHelperText sx={{ color: 'error.main', textAlign: 'center', width: '100%' }}>
-                                            {errors.file}
-                                        </FormHelperText>
-                                        {confirmationMessage && <Alert severity="success">{confirmationMessage}</Alert>}
+                        {errors.file}
+                    </FormHelperText>
+                    {confirmationMessage && <Alert severity="success">{confirmationMessage}</Alert>}
 
                 </Grid>
             </form>
