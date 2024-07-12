@@ -45,31 +45,49 @@ export function ConvertForm() {
     const [touchedFields, setTouchedFields] = useState({});
     const [serverError, setServerError] = useState("");
     const [confirmationMessage, setConfirmationMessage] = useState("");
-    
 
 
-    const validateForm = () => {
-        let tempErrors = {};
-        tempErrors.welcomePage = form.welcomePage ? (form.welcomePage.endsWith('.html') ? "" : "The welcome page must be an HTML file.") : "This field is required.";
-        tempErrors.favicon = form.favicon ? (/\.(png|jpg|jpeg)$/i.test(form.favicon) ? "" : "The favicon must be a PNG or JPG file.") : "This field is required.";
-        tempErrors.language = form.language ? "" : "This field is required.";
-        tempErrors.title = form.title ? "" : "This field is required.";
+    const validateField = (name) => {
+        let tempErrors = { ...errors };
 
-        const isZipFile = isFileReady && form.inputFile.type === "application/zip";
-        tempErrors.file = isFileReady ? (isZipFile ? "" : "The file must be a .zip format.") : "A ZIP file is required.";
+        switch (name) {
+            case 'welcomePage':
+                tempErrors.welcomePage = form.welcomePage ? (/\.(html|htm)$/i.test(form.welcomePage) ? "" : "The welcome page must be an HTML or HTM file.") : "This field is required.";
+                break;
+            case 'favicon':
+                tempErrors.favicon = form.favicon ? (/\.(png|jpg|jpeg)$/i.test(form.favicon) ? "" : "The favicon must be a PNG o JPG file.") : "This field is required.";
+                break;
+            case 'language':
+                tempErrors.language = form.language ? "" : "This field is required.";
+                break;
+            case 'title':
+                tempErrors.title = form.title ? "" : "This field is required.";
+                break;
+            case 'file':
+                const isZipFile = isFileReady && form.inputFile && form.inputFile.type === "application/zip";
+                tempErrors.file = isFileReady ? (isZipFile ? "" : "The file must be a .zip format.") : "A ZIP file is required.";
+                break;
+            default:
+                break;
+        }
+        console.log(tempErrors);
+        setErrors(tempErrors);
+        return !Object.values(tempErrors).some(error => error !== "");
+    };
 
-        console.log("form values", form);
-        console.log("errors", tempErrors);
-
-        setErrors({ ...tempErrors });
-
-        // Retorna false si hay errores
-        return Object.keys(tempErrors).every(key => tempErrors[key] === "");
+    const handleBlur = (e) => {
+        const { name, value } = e.target;
+        validateField(name, value);
     };
 
     const handleChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
-        setTouchedFields({ ...touchedFields, [e.target.name]: true });
+        const { name, value } = e.target;
+        setForm({ ...form, [name]: value });
+
+        setErrors(prevErrors => ({
+            ...prevErrors,
+            [name]: ""
+        }));
     };
 
     const handleFileChange = (e) => {
@@ -128,12 +146,11 @@ export function ConvertForm() {
 
     async function handleSubmit(e) {
         e.preventDefault();
-        setTouched(true);
-        if (!validateForm()) return;
-        const formData = new FormData();
-        Object.keys(form).forEach(key => {
-            formData.append(key, form[key]);
-        });
+
+        // Verifica si hay errores
+        if (Object.values(errors).some(error => error !== "")) {
+            return;
+        }
 
         for (let [key, value] of formData.entries()) {
             console.log(key, value);
@@ -188,16 +205,9 @@ export function ConvertForm() {
         }
     }
 
-    useEffect(() => {
-        if (touched) {
-            validateForm();
-        }
-    }, [form]);
-
 
     return (
         <Container>
-            <p>13:16</p>
             <form noValidate onSubmit={handleSubmit}>
                 <Grid container display='flex' justifyContent='space-between'>
                     <Grid item xs={12} sm={7.8}>
@@ -219,8 +229,9 @@ export function ConvertForm() {
                                             placeholder="e.g. index.html"
                                             value={form.welcomePage}
                                             onChange={handleChange}
-                                            error={touchedFields.welcomePage && !!errors.welcomePage}
-                                            helperText={touchedFields.welcomePage && errors.welcomePage}
+                                            onBlur={handleBlur}
+                                            error={errors.welcomePage}
+                                            helperText={errors.welcomePage}
                                             size="small"
                                             align="left"
                                             style={{ width: '40%' }}
@@ -235,8 +246,9 @@ export function ConvertForm() {
                                             placeholder="e.g. favicon.png"
                                             value={form.favicon}
                                             onChange={handleChange}
-                                            error={touchedFields.favicon && !!errors.favicon}
-                                            helperText={touchedFields.favicon && errors.favicon}
+                                            onBlur={handleBlur}
+                                            error={errors.favicon}
+                                            helperText={errors.favicon}
                                             size="small"
                                             align="left"
                                             style={{ width: '40%' }}
@@ -260,7 +272,7 @@ export function ConvertForm() {
                                                     </MenuItem>
                                                 ))}
                                             </Select>
-                                            {touchedFields.language && <FormHelperText>{errors.language}</FormHelperText>}
+                                           <FormHelperText>{errors.language}</FormHelperText>
                                         </FormControl>
                                     </Box>
 
@@ -273,7 +285,8 @@ export function ConvertForm() {
                                             placeholder="e.g. Our Website"
                                             value={form.title}
                                             onChange={handleChange}
-                                            error={touchedFields.title && !!errors.title}
+                                            onBlur={handleBlur}
+                                            error={errors.title}
                                             helperText={errors.title}
                                             size="small"
                                             align="left"
