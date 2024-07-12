@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 *.local
+Z
 
 # Editor directories and files
 .vscode/*
@@ -24,5 +25,4 @@ dist-ssr
 *.sln
 *.sw?
 .DS_Store
-.STATUS
 
