@@ -12,7 +12,7 @@ node_modules
 dist
 dist-ssr
 *.local
-Z
+TASKS.md
 
 # Editor directories and files
 .vscode/*

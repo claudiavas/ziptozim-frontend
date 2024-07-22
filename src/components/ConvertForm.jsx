@@ -1,28 +1,8 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { FixedSizeList as List } from 'react-window';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Button, Container, TextField, Stack, Grid, Typography, Card, CardHeader, CardContent, Box, FormHelperText, FormControl, InputLabel, Select, MenuItem, Alert } from '@mui/material';
-import iso6393 from '@freearhey/iso-639-3';
-
-// Adaptador para react-window
-const height = 35; // Altura de cada opción, ajusta según sea necesario
-const MenuList = (props) => {
-    const { options, children, maxHeight, getValue } = props;
-    const [value] = getValue();
-    const initialOffset = options.indexOf(value) * height;
-
-    return (
-        <List
-            height={maxHeight}
-            itemCount={children.length}
-            itemSize={height}
-            initialScrollOffset={initialOffset}
-            width="100%"
-        >
-            {({ index, style }) => <div style={style}>{children[index]}</div>}
-        </List>
-    );
-};
+import FileInput from './FileInput';
+import LanguageSelect from './LanguageSelect';
 
 
 export function ConvertForm() {
@@ -35,16 +15,15 @@ export function ConvertForm() {
         description: '_',
         creator: '_',
         publisher: 'ZiptoZim',
-        inputFile: null,
     });
 
-    const [isFileReady, setIsFileReady] = useState(false);
-    const fileInputRef = useRef(null);
+    const [inputFile, setInputFile] = useState(null);
     const [errors, setErrors] = useState({});
-    const [touched, setTouched] = useState(false);
-    const [touchedFields, setTouchedFields] = useState({});
+    const [isZimReady, setIsZimReady] = useState(false);
     const [serverError, setServerError] = useState("");
     const [confirmationMessage, setConfirmationMessage] = useState("");
+    const [selectedLanguage, setSelectedLanguage] = useState('');
+
 
 
     const validateField = (name) => {
@@ -58,26 +37,43 @@ export function ConvertForm() {
                 tempErrors.favicon = form.favicon ? (/\.(png|jpg|jpeg)$/i.test(form.favicon) ? "" : "The favicon must be a PNG o JPG file.") : "This field is required.";
                 break;
             case 'language':
-                tempErrors.language = form.language ? "" : "This field is required.";
+                tempErrors.language = form.language && form.language.trim() !== '' ? "" : "This field is required";
                 break;
             case 'title':
                 tempErrors.title = form.title ? "" : "This field is required.";
                 break;
-            case 'file':
-                const isZipFile = isFileReady && form.inputFile && form.inputFile.type === "application/zip";
-                tempErrors.file = isFileReady ? (isZipFile ? "" : "The file must be a .zip format.") : "A ZIP file is required.";
+            case 'inputFile':
+                tempErrors.inputFile = inputFile ? (inputFile.type === "application/zip" ? "" : "The file must be a .zip format.") : "This field is required.";
                 break;
             default:
                 break;
         }
-        console.log(tempErrors);
+
+        return tempErrors;
+
+    };
+
+    const validateForm = () => {
+        let tempErrors = {};
+        ['welcomePage', 'favicon', 'language', 'title', 'inputFile'].forEach(field => {
+            tempErrors = { ...tempErrors, ...validateField(field) };
+            console.log(`After validating ${field}:`, tempErrors);
+
+        });
+
+        console.log("tempErrors en validateForm", tempErrors);
         setErrors(tempErrors);
-        return !Object.values(tempErrors).some(error => error !== "");
+
+        // Return false if there are errors
+        return Object.keys(tempErrors).every(key => tempErrors[key] === "");
     };
 
     const handleBlur = (e) => {
-        const { name, value } = e.target;
-        validateField(name, value);
+        console.log("e.target.name en handleBlur", e.target.name);
+        let tempErrors = validateField(e.target.name);
+        setErrors(prevErrors => ({ ...prevErrors, ...tempErrors }));
+        console.log("tempErrors en handleBlur", tempErrors);
+        console.log("form en handleBlur", form);
     };
 
     const handleChange = (e) => {
@@ -91,43 +87,29 @@ export function ConvertForm() {
     };
 
     const handleFileChange = (e) => {
-        setForm({ ...form, inputFile: e.target.files[0] });
-        setTouchedFields({ ...touchedFields, inputFile: true });
-
-        if (e.target.files[0].type !== "application/zip") {
-            setErrors({ ...errors, file: "The file must be a .zip format." });
-            setIsFileReady(false);
-        } else {
-            setErrors({ ...errors, file: "" });
-            setIsFileReady(true);
-        }
+        setInputFile(e.target.files[0].name)
+        console.log("e.target.files[0] en handleFileChange", e.target.files[0]);
+        console.log("inputFile en handleFileChange", inputFile);
+        console.log("input file type", inputFile.type);
     };
 
-    // Language options for the select component
-
-    const languageOptions = useMemo(() => iso6393
-        .map(language => ({
-            value: language.code,
-            label: language.name,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label)), // Ordena alfabéticamente por label
-        [],);
-
-    const [selectedLanguage, setSelectedLanguage] = useState('');
+    useEffect(() => {
+        if (inputFile) {
+            let tempErrors = { ...errors, ...validateField("inputFile") };
+            console.log("inputFile en useEffect", inputFile);
+            setErrors(tempErrors);
+        }
+    }, [inputFile]);
 
     const handleLanguageChange = (event) => {
-
-        const selectedOption = event.target.value;
-
+        const selectedOption = event?.target?.value || '';
         setSelectedLanguage(selectedOption);
-        if (selectedOption) {
-            setForm(prevForm => ({ ...prevForm, language: selectedOption }));
-        } else {
-            setForm(prevForm => ({ ...prevForm, language: '' }));
-        }
+        setForm(prevForm => ({ ...prevForm, language: selectedOption }));
+        console.log("Selected language:", selectedOption);
     };
 
-    async function postFormData(formData) {
+
+    const postFormData = async (formData) => {
         try {
             const response = await axios.post(import.meta.env.VITE_API, formData, {
                 responseType: 'blob', // Important to manage the response as a blob
@@ -142,16 +124,27 @@ export function ConvertForm() {
             // Lanzar el error para manejarlo en el bloque try-catch de handleSubmit
             throw err;
         }
-    }
+    };
 
-    async function handleSubmit(e) {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Verifica si hay errores
-        if (Object.values(errors).some(error => error !== "")) {
+        // Valida el formulario
+        if (!validateForm()) {
             return;
         }
 
+        // Crear un objeto FormData y agregar todos los campos del formulario
+
+        const formData = new FormData();
+        Object.keys(form).forEach(key => {
+            formData.append(key, form[key]);
+        });
+        if (file) {
+            formData.append('inputFile', file);
+        }
+
+        // Imprime los datos del formulario en la consola
         for (let [key, value] of formData.entries()) {
             console.log(key, value);
         }
@@ -159,7 +152,7 @@ export function ConvertForm() {
         try {
             const response = await postFormData(formData);
             if (response && response.status === 200) {
-                await handleFileDownload(response);
+                handleFileDownload(response);
                 setServerError("");
 
                 // Limpia el estado del formulario y referencias al archivo
@@ -171,9 +164,7 @@ export function ConvertForm() {
                     description: '_',
                     creator: '_',
                     publisher: 'ZiptoZim',
-                    inputFile: null
                 });
-                setIsFileReady(false);
                 setSelectedLanguage('');
 
             } else {
@@ -183,11 +174,10 @@ export function ConvertForm() {
         } catch (err) {
             console.error("Error submitting form:", err);
             setServerError(err.response ? err.response.data : "Error submitting form");
-
         }
-    }
+    };
 
-    async function handleFileDownload(response) {
+    const handleFileDownload = (response) => {
         if (form && form.inputFile) {
             const blob = new Blob([response.data], { type: 'application/octet-stream' });
             const downloadUrl = URL.createObjectURL(blob);
@@ -199,11 +189,10 @@ export function ConvertForm() {
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(downloadUrl);
-
         } else {
             alert("No file selected for download.");
         }
-    }
+    };
 
 
     return (
@@ -256,24 +245,12 @@ export function ConvertForm() {
                                     </Box>
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Typography variant="body1" align="left" sx={{ width: '60%' }}>Language of the content</Typography>
-                                        <FormControl sx={{ width: '90%' }} error={touchedFields.language && !!errors.language}>
-                                            <InputLabel id="language-select-label">Select language</InputLabel>
-                                            <Select
-                                                labelId="language-select-label"
-                                                id="language-select"
-                                                label="Select language"
-                                                placeholder='Select language'
-                                                value={selectedLanguage}
-                                                onChange={handleLanguageChange}
-                                            >
-                                                {languageOptions.map((option) => (
-                                                    <MenuItem key={`${option.value}-${option.label}`} value={option.value}>
-                                                        {option.label}
-                                                    </MenuItem>
-                                                ))}
-                                            </Select>
-                                           <FormHelperText>{errors.language}</FormHelperText>
-                                        </FormControl>
+                                        <LanguageSelect
+                                            selectedLanguage={selectedLanguage}
+                                            handleLanguageChange={handleLanguageChange}
+                                            handleBlur={handleBlur}
+                                            error={errors.language}
+                                        />
                                     </Box>
 
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
@@ -344,14 +321,6 @@ export function ConvertForm() {
                                             style={{ width: '60%' }}
                                         />
                                     </Box>
-                                    {/* File input for the zip file, this component is hidden and the file is selected by clicking the button "SELECT ZIP FILE" */}
-                                    <input
-                                        type="file"
-                                        name="inputFile"
-                                        ref={fileInputRef}
-                                        style={{ display: 'none' }}
-                                        onChange={handleFileChange}
-                                    />
                                 </Stack>
                             </CardContent>
                         </Card>
@@ -365,24 +334,16 @@ export function ConvertForm() {
                             <Card sx={{ mb: '2rem', backgroundColor: 'transparent', border: '1px solid', borderColor: 'grey.300', boxShadow: '0px 0px 8px rgba(0, 0, 0, 0.25)' }}>
                                 <CardHeader title="Upload Zip File" />
                                 <CardContent>
-                                    <Typography variant="body1" align="left" sx={{ mb: 2 }}>Select the zip file to be converted to Zim (double click), it's recommended that the main html file and the icon are placed in the main directory.</Typography>
-                                    <Box alignItems="center" gap={2}>
-                                        <Button
-                                            variant="outlined"
-                                            onClick={() => fileInputRef.current.click()}
-                                            sx={{ mb: 2 }}
-                                        >
-                                            Select Zip File
-                                        </Button>
-                                        {touchedFields.inputFile && errors.file && (<FormHelperText sx={{ color: 'error.main', textAlign: 'center', width: '100%' }}>
-                                            {errors.file}
-                                        </FormHelperText>
-                                        )}
-                                        <Typography variant="body1" align="center">Selected file: {form.inputFile ? form.inputFile.name : 'None'}</Typography>
-                                    </Box>
+                                    <Typography variant="body1" align="left" sx={{ mb: 2 }}>Select the zip file to be converted to Zim: </Typography>
+                                    <FileInput
+                                        file={inputFile}
+                                        onChange={handleFileChange}
+                                        handleBlur={handleBlur}
+                                        error={errors.file}
+                                    />
                                 </CardContent>
                             </Card>
-                            {isFileReady && !errors.file ? (
+                            {isZimReady ? (
                                 <Button
                                     variant="contained"
                                     onClick={handleFileDownload}
@@ -404,10 +365,6 @@ export function ConvertForm() {
 
                         </Stack>
                     </Grid>
-                    <FormHelperText sx={{ color: 'error.main', textAlign: 'center', width: '100%' }}>
-                        {errors.file}
-                    </FormHelperText>
-                    {confirmationMessage && <Alert severity="success">{confirmationMessage}</Alert>}
 
                 </Grid>
             </form>
