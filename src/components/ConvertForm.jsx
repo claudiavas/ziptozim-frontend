@@ -25,7 +25,6 @@ export function ConvertForm() {
     const [selectedLanguage, setSelectedLanguage] = useState('');
 
 
-
     const validateField = (name) => {
         let tempErrors = { ...errors };
 
@@ -43,7 +42,7 @@ export function ConvertForm() {
                 tempErrors.title = form.title ? "" : "This field is required.";
                 break;
             case 'inputFile':
-                tempErrors.inputFile = inputFile ? (inputFile.type === "application/zip" ? "" : "The file must be a .zip format.") : "This field is required.";
+                tempErrors.inputFile = inputFile ? (/\.(zip)$/i.test(inputFile.name) ? "" : "The file must be a ZIP file.") : "This field is required.";
                 break;
             default:
                 break;
@@ -57,8 +56,6 @@ export function ConvertForm() {
         let tempErrors = {};
         ['welcomePage', 'favicon', 'language', 'title', 'inputFile'].forEach(field => {
             tempErrors = { ...tempErrors, ...validateField(field) };
-            console.log(`After validating ${field}:`, tempErrors);
-
         });
 
         console.log("tempErrors en validateForm", tempErrors);
@@ -69,11 +66,8 @@ export function ConvertForm() {
     };
 
     const handleBlur = (e) => {
-        console.log("e.target.name en handleBlur", e.target.name);
         let tempErrors = validateField(e.target.name);
         setErrors(prevErrors => ({ ...prevErrors, ...tempErrors }));
-        console.log("tempErrors en handleBlur", tempErrors);
-        console.log("form en handleBlur", form);
     };
 
     const handleChange = (e) => {
@@ -87,31 +81,20 @@ export function ConvertForm() {
     };
 
     const handleFileChange = (e) => {
-        setInputFile(e.target.files[0].name)
+        setInputFile(e.target.files[0])
         console.log("e.target.files[0] en handleFileChange", e.target.files[0]);
-        console.log("inputFile en handleFileChange", inputFile);
-        console.log("input file type", inputFile.type);
+        setErrors(prevErrors => ({  ...prevErrors, inputFile: "" }));
     };
-
-    useEffect(() => {
-        if (inputFile) {
-            let tempErrors = { ...errors, ...validateField("inputFile") };
-            console.log("inputFile en useEffect", inputFile);
-            setErrors(tempErrors);
-        }
-    }, [inputFile]);
 
     const handleLanguageChange = (event) => {
         const selectedOption = event?.target?.value || '';
         setSelectedLanguage(selectedOption);
         setForm(prevForm => ({ ...prevForm, language: selectedOption }));
-        console.log("Selected language:", selectedOption);
     };
 
-
-    const postFormData = async (formData) => {
+    const postFormData = async (data) => {
         try {
-            const response = await axios.post(import.meta.env.VITE_API, formData, {
+            const response = await axios.post(import.meta.env.VITE_API, data, {
                 responseType: 'blob', // Important to manage the response as a blob
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -126,35 +109,36 @@ export function ConvertForm() {
         }
     };
 
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+    
         // Valida el formulario
         if (!validateForm()) {
             return;
         }
-
+        console.log("inputFile en handleSubmit", inputFile);
+    
         // Crear un objeto FormData y agregar todos los campos del formulario
-
         const formData = new FormData();
         Object.keys(form).forEach(key => {
             formData.append(key, form[key]);
         });
-        if (file) {
-            formData.append('inputFile', file);
+        if (inputFile) {
+            formData.append('inputFile', inputFile);
         }
-
+    
         // Imprime los datos del formulario en la consola
         for (let [key, value] of formData.entries()) {
             console.log(key, value);
         }
-
+    
         try {
             const response = await postFormData(formData);
             if (response && response.status === 200) {
                 handleFileDownload(response);
                 setServerError("");
-
+    
                 // Limpia el estado del formulario y referencias al archivo
                 setForm({
                     welcomePage: '',
@@ -165,8 +149,9 @@ export function ConvertForm() {
                     creator: '_',
                     publisher: 'ZiptoZim',
                 });
+                setInputFile(null);
                 setSelectedLanguage('');
-
+    
             } else {
                 console.error("Error submitting form: Invalid server response");
                 setServerError("Invalid server response");
@@ -176,12 +161,12 @@ export function ConvertForm() {
             setServerError(err.response ? err.response.data : "Error submitting form");
         }
     };
-
+    
     const handleFileDownload = (response) => {
-        if (form && form.inputFile) {
+        if (inputFile) {
             const blob = new Blob([response.data], { type: 'application/octet-stream' });
             const downloadUrl = URL.createObjectURL(blob);
-            const fileName = form.inputFile.name;
+            const fileName = inputFile.name;
             const a = document.createElement('a');
             a.href = downloadUrl;
             a.download = fileName.replace(/\.zip$/i, ".zim");
@@ -339,7 +324,7 @@ export function ConvertForm() {
                                         file={inputFile}
                                         onChange={handleFileChange}
                                         handleBlur={handleBlur}
-                                        error={errors.file}
+                                        error={errors.inputFile}
                                     />
                                 </CardContent>
                             </Card>

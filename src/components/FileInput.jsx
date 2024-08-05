@@ -18,14 +18,13 @@ const FileInput = ({ file, onChange, handleBlur, error }) => {
                 <Button
                     variant="outlined"
                     onClick={handleClick}
-                    onBlur={handleBlur}
                     name="file"
                     sx={{ mb: 2 }}
                 >
                     Select Zip File
                 </Button>
                 <Typography variant="body1" align="center">
-                    Selected file: {displayFile ? displayFile : 'None'}
+                    Selected file: {displayFile ? displayFile.name : 'None'}
                 </Typography>
                 <FormHelperText sx={{ color: 'error.main', textAlign: 'center', width: '100%' }}>
                     {error}
