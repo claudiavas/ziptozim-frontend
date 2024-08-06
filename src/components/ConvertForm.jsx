@@ -3,6 +3,8 @@ import axios from 'axios';
 import { Button, Container, TextField, Stack, Grid, Typography, Card, CardHeader, CardContent, Box, FormHelperText, FormControl, InputLabel, Select, MenuItem, Alert } from '@mui/material';
 import FileInput from './FileInput';
 import LanguageSelect from './LanguageSelect';
+import LoadingButton from '@mui/lab/LoadingButton';
+
 
 
 export function ConvertForm() {
@@ -20,10 +22,11 @@ export function ConvertForm() {
     const [inputFile, setInputFile] = useState(null);
     const [errors, setErrors] = useState({});
     const [isZimReady, setIsZimReady] = useState(false);
-    const [serverError, setServerError] = useState("");
+    const [serverError, setServerError] = useState({});
     const [confirmationMessage, setConfirmationMessage] = useState("");
     const [selectedLanguage, setSelectedLanguage] = useState('');
-
+    const [loading, setLoading] = useState(false);
+    const [showError, setShowError] = useState(false);
 
     const validateField = (name) => {
         let tempErrors = { ...errors };
@@ -83,7 +86,7 @@ export function ConvertForm() {
     const handleFileChange = (e) => {
         setInputFile(e.target.files[0])
         console.log("e.target.files[0] en handleFileChange", e.target.files[0]);
-        setErrors(prevErrors => ({  ...prevErrors, inputFile: "" }));
+        setErrors(prevErrors => ({ ...prevErrors, inputFile: "" }));
     };
 
     const handleLanguageChange = (event) => {
@@ -112,13 +115,13 @@ export function ConvertForm() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-    
+
         // Valida el formulario
         if (!validateForm()) {
             return;
         }
         console.log("inputFile en handleSubmit", inputFile);
-    
+
         // Crear un objeto FormData y agregar todos los campos del formulario
         const formData = new FormData();
         Object.keys(form).forEach(key => {
@@ -127,19 +130,21 @@ export function ConvertForm() {
         if (inputFile) {
             formData.append('inputFile', inputFile);
         }
-    
+
         // Imprime los datos del formulario en la consola
         for (let [key, value] of formData.entries()) {
             console.log(key, value);
         }
-    
+
+        setLoading(true); // Iniciar el estado de carga
+
         try {
             const response = await postFormData(formData);
             if (response && response.status === 200) {
                 handleFileDownload(response);
                 setServerError("");
-    
-                // Limpia el estado del formulario y referencias al archivo
+                setShowError(false); // Ocultar el error si la solicitud es exitosa
+
                 setForm({
                     welcomePage: '',
                     favicon: '',
@@ -151,34 +156,45 @@ export function ConvertForm() {
                 });
                 setInputFile(null);
                 setSelectedLanguage('');
-    
+
             } else {
                 console.error("Error submitting form: Invalid server response");
                 setServerError("Invalid server response");
+                setShowError(true); // Mostrar el error
             }
         } catch (err) {
             console.error("Error submitting form:", err);
-            setServerError(err.response ? err.response.data : "Error submitting form");
-        }
-    };
-    
-    const handleFileDownload = (response) => {
-        if (inputFile) {
-            const blob = new Blob([response.data], { type: 'application/octet-stream' });
-            const downloadUrl = URL.createObjectURL(blob);
-            const fileName = inputFile.name;
-            const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = fileName.replace(/\.zip$/i, ".zim");
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(downloadUrl);
-        } else {
-            alert("No file selected for download.");
-        }
-    };
+            if (err.response && err.response.data) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        console.log("Reader result:", reader.result); // Verificar el contenido leído
+                        const errorData = JSON.parse(reader.result);
+                        console.log("Parsed error data:", errorData); // Verificar el contenido parseado
 
+                        let errorMessage = "Error submitting form";
+                        if (errorData.error.includes("illustration") || errorData.message.includes("favicon")) {
+                            errorMessage = "Error with the icon file, please verify the file exists in the main directory or specify the correct path.";
+                        } else if (errorData.error.includes("welcome")) {
+                            errorMessage = "Error with the Main HTML file, please verify the file exists in the main directory or specify the correct path.";
+                        }
+                        console.log("errorMessage", errorMessage);
+                        setServerError(errorMessage);
+                        console.log("serverError en catch", serverError);
+                    } catch (parseError) {
+                        console.error("Error parsing error response:", parseError);
+                        setServerError("Error submitting form");
+                    }
+                };
+                reader.readAsText(err.response.data);
+            } else {
+                setServerError("Error submitting form");
+            }
+            setShowError(true); // Mostrar el error
+        } finally {
+            setLoading(false); // Detener el estado de carga
+        }
+    }
 
     return (
         <Container>
@@ -195,11 +211,13 @@ export function ConvertForm() {
                                     sx={{ pt: 2 }}
                                 >
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
-                                        <Typography variant="body1" align="left" sx={{ width: '60%' }}>Name of the main HTML page, if it's not in the main directory, use the path, e.g. docs/index.html</Typography>
+                                        <Box sx={{ width: '40%' }}>
+                                            <Typography variant="body1" align="left">Main HTML File</Typography>
+                                        </Box>
                                         <TextField
                                             required
                                             name="welcomePage"
-                                            label="Main HTML Page"
+                                            label="Main HTML File"
                                             placeholder="e.g. index.html"
                                             value={form.welcomePage}
                                             onChange={handleChange}
@@ -208,15 +226,20 @@ export function ConvertForm() {
                                             helperText={errors.welcomePage}
                                             size="small"
                                             align="left"
-                                            style={{ width: '40%' }}
+                                            style={{ width: '60%' }}
                                         />
                                     </Box>
+                                    <Typography variant="body2" align="left" sx={{ fontStyle: 'italic', color: 'grey.600'}}>
+                                        (name of the main file of the website, usually named index.html. If it's not located in the main directory, use the path, e.g. directory/index.html)
+                                    </Typography>
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} style={{ width: '100%' }}>
-                                        <Typography variant="body1" align="left" sx={{ width: '60%' }}>Name of the icon, if it's not in the main directory, use the path, e.g. img/favicon.png</Typography>
+                                        <Box sx={{ width: '40%' }}>
+                                            <Typography variant="body1" align="left">Icon File</Typography>
+                                        </Box>
                                         <TextField
                                             required
                                             name="favicon"
-                                            label="Website's Icon"
+                                            label="Icon File"
                                             placeholder="e.g. favicon.png"
                                             value={form.favicon}
                                             onChange={handleChange}
@@ -225,9 +248,12 @@ export function ConvertForm() {
                                             helperText={errors.favicon}
                                             size="small"
                                             align="left"
-                                            style={{ width: '40%' }}
+                                            style={{ width: '60%' }}
                                         />
                                     </Box>
+                                    <Typography variant="body2" align="left" sx={{ fontStyle: 'italic', color: 'grey.600' }}>
+                                        (name of the icon of the website, usually named favicon.png If it's not located in the main directory, use the path, e.g. directory/favicon.png)
+                                    </Typography>
                                     <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Typography variant="body1" align="left" sx={{ width: '60%' }}>Language of the content</Typography>
                                         <LanguageSelect
@@ -338,17 +364,29 @@ export function ConvertForm() {
                                     Download Zim File
                                 </Button>
                             ) : (
-                                <Button
+                                <LoadingButton
                                     variant="contained"
                                     type="submit"
                                     size="large"
-                                    sx={{ mt: 20, maxWidth: 'fit-content', margin: '0 auto' }}
+                                    loading={loading}
+                                    sx={{ mt: 18, maxWidth: 'fit-content', margin: '0 auto' }}
                                 >
                                     Generate Zim File
-                                </Button>
+                                </LoadingButton>
                             )}
 
                         </Stack>
+                        {showError && (
+                            <Alert
+                                severity="error"
+                                sx={{ mt: 3.5 }}
+                                onClose={() => setShowError(false)} // Ocultar el error al hacer clic en la "X"
+                            >
+                                <div>
+                                    {serverError}
+                                </div>
+                            </Alert>
+                        )}
                     </Grid>
 
                 </Grid>
