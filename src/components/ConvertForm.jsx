@@ -21,9 +21,7 @@ export function ConvertForm() {
 
     const [inputFile, setInputFile] = useState(null);
     const [errors, setErrors] = useState({});
-    const [isZimReady, setIsZimReady] = useState(false);
     const [serverError, setServerError] = useState({});
-    const [confirmationMessage, setConfirmationMessage] = useState("");
     const [selectedLanguage, setSelectedLanguage] = useState('');
     const [loading, setLoading] = useState(false);
     const [showError, setShowError] = useState(false);
@@ -112,6 +110,22 @@ export function ConvertForm() {
         }
     };
 
+    const handleFileDownload = (response) => {
+        if (inputFile) {
+            const blob = new Blob([response.data], { type: 'application/octet-stream' });
+            const downloadUrl = URL.createObjectURL(blob);
+            const fileName = inputFile.name;
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = fileName.replace(/\.zip$/i, ".zim");
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+        } else {
+            alert("No file selected for download.");
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -354,16 +368,7 @@ export function ConvertForm() {
                                     />
                                 </CardContent>
                             </Card>
-                            {isZimReady ? (
-                                <Button
-                                    variant="contained"
-                                    onClick={handleFileDownload}
-                                    size="large"
-                                    sx={{ mt: 2, maxWidth: 'fit-content', margin: '0 auto', backgroundColor: 'green' }}
-                                >
-                                    Download Zim File
-                                </Button>
-                            ) : (
+                            
                                 <LoadingButton
                                     variant="contained"
                                     type="submit"
@@ -373,7 +378,6 @@ export function ConvertForm() {
                                 >
                                     Generate Zim File
                                 </LoadingButton>
-                            )}
 
                         </Stack>
                         {showError && (
