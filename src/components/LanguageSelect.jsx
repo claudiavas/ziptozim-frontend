@@ -35,6 +35,7 @@ const LanguageSelect = ({ selectedLanguage, handleLanguageChange, handleBlur, er
                         label="Select language"
                         placeholder="Type to filter languages"
                         margin="normal"
+                        padding="none"
                         error={!!error}
                         helperText={error}
                         name="language"
